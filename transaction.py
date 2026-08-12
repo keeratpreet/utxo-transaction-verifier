@@ -31,20 +31,23 @@ def canonical_serialize(
       - Call json.dumps(..., sort_keys=True, separators=(",", ":")).
       - Return the resulting UTF-8 encoded bytes.
     """
-    # TODO: implement as specified in the assignment instructions
+    # deep-copy so the substitution below never mutates the caller's tx dict —
+    # get_signing_message() calls this once per input, each time swapping in a
+    # different input's script_sig, and must not leak state between calls
     tx_copy = copy.deepcopy(tx)
 
     if substitute_input_index is not None:
         tx_copy["inputs"][substitute_input_index]["script_sig"] = substitute_script
 
+    # sort_keys=True makes dict-key order canonical; list order (inputs/outputs)
+    # is preserved as-is, which is required since inputs are referenced by index
     serialized = json.dumps(
         tx_copy,
         sort_keys=True,
-        separators=("," , ":")
+        separators=(",", ":")
     )
 
     return serialized.encode("utf-8")
-    # raise NotImplementedError
 
 
 def tx_id(tx: dict) -> str:
@@ -52,7 +55,6 @@ def tx_id(tx: dict) -> str:
     Return transaction ID as a hex string:
         tx_id = hash256(canonical_serialize(tx)).hex()
     """
-    # TODO: implement using canonical_serialize(tx) and hash256
     return hash256(canonical_serialize(tx)).hex()
 
 
@@ -67,7 +69,6 @@ def get_signing_message(tx: dict, input_index: int, spent_script_pubkey: list) -
             )
         )
     """
-    # TODO: implement using canonical_serialize as specified above
     serialized = canonical_serialize(
         tx,
         substitute_input_index=input_index,

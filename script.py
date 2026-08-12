@@ -50,12 +50,12 @@ def execute_script(script_sig: list, script_pubkey: list, message: bytes) -> boo
       must be true (non-zero int or non-empty bytes). Otherwise the script
       fails.
     """
-    # TODO: implement according to the exact opcode semantics in the assignment instructions
-    stack=[]
+    stack = []
     script = script_sig + script_pubkey
 
-    for i in script :
+    for i in script:
         if not _is_opcode(i):
+          # data element: push onto the stack
           if isinstance(i, str):
               # handle multisig integers like "2" or "3"
               if i.isdigit():
@@ -65,42 +65,49 @@ def execute_script(script_sig: list, script_pubkey: list, message: bytes) -> boo
           else:
               stack.append(i)
           continue
-        
+
         if i == "OP_DUP":
+            # duplicate the top stack item
             if len(stack)<1:
-                return False 
+                return False
             stack.append(stack[-1])
 
         elif i == "OP_HASH160":
+            # replace top item with RIPEMD160(SHA256(item))
             if len(stack) < 1 :
                 return False
             stack.append(hash160(stack.pop()))
 
         elif i=="OP_EQUAL":
+            # pop two items, push 1/0 for equal/not-equal (non-failing comparison)
             if len(stack) < 2:
-                return False 
+                return False
             a=stack.pop()
             b=stack.pop()
             if a== b :
                 stack.append(1)
             else:
                 stack.append(0)
-            
+
         elif i == "OP_EQUALVERIFY":
+            # OP_EQUAL + OP_VERIFY fused: fail the whole script immediately on mismatch
             if len(stack) < 2 :
-                return False 
+                return False
             if stack.pop() != stack.pop():
-                return False 
-            
+                return False
+
         elif i == "OP_VERIFY":
+            # fail the whole script if the top item is falsy
             if len(stack) < 1 :
-                return False 
+                return False
             if not stack.pop() :
-                return False 
+                return False
 
         elif i == "OP_CHECKSIG":
+            # standard P2PKH check: stack has [..., sig, pubkey] (pubkey on top,
+            # matching how script_sig pushes sig then script_pubkey pushes pubkey)
             if len(stack) < 2 :
-                return False 
+                return False
             pubkey = stack.pop()
             sign = stack.pop()
             if(verify_signature(pubkey,message,sign)):
@@ -109,53 +116,62 @@ def execute_script(script_sig: list, script_pubkey: list, message: bytes) -> boo
                 stack.append(0)
 
         elif i == "OP_CHECKMULTISIG":
+            # m-of-n multisig. Stack layout (top to bottom, as pushed by the
+            # script): n, pubkey_n..pubkey_1, m, sig_m..sig_1 — so popping n
+            # pubkeys then m sigs recovers both lists (each in reverse push order,
+            # which doesn't matter since every sig is checked against every pubkey).
             if len(stack) < 1:
-                return False 
-            
+                return False
+
             n = stack.pop()
             if not isinstance(n,int):
                 return False
-            
+
             if len(stack) < n:
-                return False 
-            
+                return False
+
             pubkeys = []
 
             for k in range(n):
                 pubkeys.append(stack.pop())
 
             if len(stack) < 1:
-                return False 
-            
+                return False
+
             m=stack.pop()
             if not isinstance(m,int):
-                return False 
-            
+                return False
+
             sigs=[]
             if len(stack) < m :
                 return False
-            
+
             for k in range(m):
                 sigs.append(stack.pop())
 
-            valid_cnt = 0 
+            # each signature must match some not-yet-used pubkey; `break` after a
+            # match keeps this a simple greedy count rather than exact bipartite
+            # matching, which is sufficient for this assignment's semantics
+            valid_cnt = 0
             for sig in sigs:
                 for pk in pubkeys:
                     if verify_signature(pk,message,sig):
-                        valid_cnt+=1 
-                        break 
+                        valid_cnt+=1
+                        break
             stack.append(1 if valid_cnt >=m else 0)
 
         else :
-            return False 
-    
+            # unknown opcode
+            return False
+
+    # a script only succeeds if it leaves exactly one truthy value behind
     if len(stack) != 1 :
-        return False 
-    
+        return False
+
     top = stack.pop()
     if isinstance(top,int):
         return top != 0
-    
+
     return bool(top)
 
 def _is_opcode(elem) -> bool:
