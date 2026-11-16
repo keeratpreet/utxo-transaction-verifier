@@ -37,3 +37,7 @@ pip install ecdsa
 ```
 
 See `report.pdf` for the full design writeup, including the challenges around mixed script-element typing (hex vs. int) and multisignature verification.
+
+## License
+
+Released under the [MIT License](LICENSE).
