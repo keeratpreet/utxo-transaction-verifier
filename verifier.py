@@ -37,6 +37,13 @@ def verify_transaction(tx: dict, utxo_set: dict) -> bool:
     if len(tx["inputs"]) == 0 or len(tx["outputs"]) == 0:
         return False
 
+    # every output must be a positive integer: a negative output could offset
+    # a huge one and slip past the fee rule below (e.g. outputs [150, -60]
+    # against 100 of inputs)
+    for out in tx["outputs"]:
+        if type(out.get("value")) is not int or out["value"] <= 0:
+            return False
+
     # double-spend guard: no input may reference the same (txid, vout) twice
     # within this transaction
     seen = set()
