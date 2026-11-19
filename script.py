@@ -149,13 +149,15 @@ def execute_script(script_sig: list, script_pubkey: list, message: bytes) -> boo
             for k in range(m):
                 sigs.append(stack.pop())
 
-            # each signature must match some not-yet-used pubkey; `break` after a
-            # match keeps this a simple greedy count rather than exact bipartite
-            # matching, which is sufficient for this assignment's semantics
+            # each signature must match a different pubkey: once a key has
+            # been matched it is marked used, so one signer's signature
+            # repeated m times cannot satisfy an m-of-n lock
             valid_cnt = 0
+            used = [False] * len(pubkeys)
             for sig in sigs:
-                for pk in pubkeys:
-                    if verify_signature(pk,message,sig):
+                for k, pk in enumerate(pubkeys):
+                    if not used[k] and verify_signature(pk,message,sig):
+                        used[k] = True
                         valid_cnt+=1
                         break
             stack.append(1 if valid_cnt >=m else 0)
